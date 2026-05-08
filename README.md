@@ -16,7 +16,7 @@
 
 ---
 
-Mac/Windows 터미널에서 수행하던 2단계 SSH 기반 원격 빌드 절차 (`user@host → builder@host:3021 → cd <build path> → ./select/<model> → ./build.sh [-c]`) 를 자동화한다. **CLI 1회 성공**·**3개 도메인 (System / APK / ADB)**·**40+ FastAPI 엔드포인트 + 3 WebSocket 스트림**·**APK debug↔release 변형 + 4단계 keystore 자동 탐지**·**드래그/↑↓ 카드 순서 변경**·**SSE 실시간 로그 스트리밍**·**Virtual-scroll Web UI** 를 제공해 Web/App/Paperclip 이 공통으로 사용할 수 있다.
+Mac/Windows 터미널에서 수행하던 2단계 SSH 기반 원격 빌드 절차 (`user@host → builder@host:3021 → cd <build path> → ./select/<model> → ./build.sh [-c]`) 를 자동화한다. **CLI 1회 성공**·**3개 도메인 (System / APK / ADB)**·**40+ FastAPI 엔드포인트 + 3 WebSocket 스트림**·**APK debug↔release 변형 + 4단계 keystore 자동 탐지**·**드래그/↑↓ 카드 순서 변경**·**SSE 실시간 로그 스트리밍**·**Virtual-scroll Web UI**·**로컬 LLM 챗봇 (자연어 빌드 명령 + 상태/실패 분석)** 을 제공해 Web/App/Paperclip 이 공통으로 사용할 수 있다.
 
 ## 📑 목차
 
@@ -45,6 +45,7 @@ Mac/Windows 터미널에서 수행하던 2단계 SSH 기반 원격 빌드 절차
 | 🎛️ **Job 라이프사이클 제어** | 재시도 버튼 (FAILED Job), 취소 버튼 (non-terminal · Job Detail 헤더 + Dashboard 카드 build 버튼이 진행 중일 때 "종료" 로 변신), 연결 테스트 (Target 모달) |
 | 💾 **Job 영속성** | 메타데이터 JSON 스냅샷 + 재기동 시 진행중 job 을 `FAILED + SERVER_RESTARTED` 로 복원 |
 | 🌐 **Web UI** | SVG 차트, Virtual-scroll 로그 뷰어, Command Palette (Cmd+K), 다크모드, Dashboard 사이드바 |
+| 🤖 **로컬 LLM 챗봇 — 명령 & 상태 조회 통합** | 우측 패널의 챗봇 1개로 **자연어 빌드 명령** + **상태/실패 분석**을 모두 수행. LM Studio (`http://127.0.0.1:1337/v1`) 등 OpenAI 호환 로컬 LLM 직결 (백엔드 경유 X, 키 노출 0). 매 메시지가 먼저 JSON intent router 로 분류되어 `build` 면 검증된 타겟명만 `/build/start` 로 dispatch (verbatim guard — 모르는 이름은 chat 으로 강등), `chat` 이면 streaming 응답. 시스템 프롬프트가 매 호출마다 **현재 타겟 / APK 프로젝트 / 실행 중 빌드 / 최근 종료 5건 / 최근 실패 빌드 로그 30줄** 자동 주입 → "실패 원인 알려줘" 같은 요청에 실제 로그 인용 응답. 챗봇이 트리거한 빌드는 SUCCESS/FAILED 시 ✓/✗ + duration 알림 메시지 자동 푸시 |
 | 🛡️ **Backpressure** | Thread pool 포화 시 즉시 `HTTP 503 QUEUE_FULL` (요청 stall 방지) |
 | 🔒 **2-tier 인증** | `API_TOKEN` (read/빌드) + 선택적 `ADMIN_TOKEN` (Target CRUD 분리) |
 | 🏥 **상세 Readiness probe** | `GET /health/ready` — job_store / log_dir / thread_pool / recent_builds subsystem 상태 |
@@ -354,6 +355,13 @@ sudo SERVICE_HOST=0.0.0.0 SERVICE_USER=builder ./scripts/systemd/install.sh
 **🎨 레이아웃**: 좌측 Rail (`⌂ Dashboard` / `≡ Jobs` / `⚙ Settings` / 디바이더 / `⊞ APK` / `⚙ ADB`) + 사이드바 (Targets / APK / ADB Devices, 라우트별 swap) + 본문. 하단 고정 아이콘은 테마 토글과 `/health` 인디케이터(●).
 
 **📱 모바일 (<768px)**: 사이드바 대신 main 에 큰 카드 그리드 + 하단 네비 (Dash / Jobs / Targets / Config / APK / ADB). ADB 라우트는 별도로 sticky-top device chip strip 으로 device 선택.
+
+**🤖 챗봇 패널 (우측, 모든 라우트 공통)**: 화면 우측의 LLM 챗봇이 빌드 도메인의 **명령 + 상태 조회 통합 콘솔**입니다.
+  - 백엔드를 거치지 않고 브라우저가 직접 로컬 LLM (LM Studio 기본 `http://127.0.0.1:1337/v1`, 또는 OpenAI 호환 다른 서버) 에 붙으므로 외부로 데이터/토큰 유출 없음.
+  - **명령 예시**: `default 빌드해`, `<target> 와 <target2> 빌드 진행`. 모르는 타겟명을 LLM 이 만들어 내면 router 가 `chat` 으로 강등시켜 잘못된 빌드를 막습니다.
+  - **상태 조회 예시**: `실행 중인 빌드 알려줘`, `실패한 빌드 원인 분석`, `타겟 모두 보여줘`, `최근 빌드 결과 요약`. 매 메시지마다 현재 타겟 / APK 프로젝트 / 진행 중 / 최근 5건 / 최근 실패 빌드 로그 30줄이 system prompt 로 주입됩니다.
+  - **자동 알림**: 챗봇이 트리거한 빌드의 SUCCESS / FAILED 가 폴링 cycle 에서 감지되면 ✓/✗ + duration + job_id 메시지가 패널에 자동 푸시됩니다.
+  - LM Studio 가 안 떠 있으면 첫 메시지에서 연결 실패 토스트 — 로컬 OpenAI 호환 서버를 먼저 기동해야 합니다.
 
 **📦 APK 메뉴 (`#/apk`)**: 사이드바 카드 = 등록된 APK 프로젝트, 본문 = 최근 빌드 jobs. 카드별 variant 셀렉트로 `debug` / `release` 선택 (release 는 keystore 자동 탐지 결과 ready=false 면 disabled). 좌측 끝 드래그 핸들 또는 우측 ↑↓ 버튼으로 카드 순서 자유 변경 (즉시 영속화, hover 시 ↑↓ 노출 / 터치 디바이스는 항상 노출). Edit 모달의 `🔑 Release keystore 경로` 입력에 명시 경로 지정 가능, 비워두면 `release.keystore` → `keystore.jks` → `platform.jks` → `keystore.properties (storeFile)` 순으로 자동 탐지.
 
@@ -770,4 +778,3 @@ build-server-cli/
 _내부 Gitea 저장소 · 650 pytest (394 unit + 199 ADB + 57 e2e) · Playwright + fake adb · 2026-05-08 기준_
 
 </div>
-
