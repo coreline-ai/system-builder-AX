@@ -2,6 +2,8 @@
 
 # 🚀 Remote Build Automation System
 
+<img width="2048" height="1143" alt="builder_system" src="https://github.com/user-attachments/assets/7f0b6cd0-5484-4002-a6e4-bdbd1259cc6c" /><br>
+
 **2-단계 SSH 원격 빌드를 자동화하는 CLI + FastAPI 서버 + Web UI**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
