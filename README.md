@@ -1,5 +1,7 @@
 <div align="center">
 
+<img width="400" height="400" alt="ChatGPT Image 2026년 5월 14일 오후 10_30_15" src="https://github.com/user-attachments/assets/9e1d7438-f1e2-4d3d-a05a-321e4ce114ac" />
+
 # 🚀 Remote Build Automation System
 
 <img width="2048" height="1143" alt="builder_system" src="https://github.com/user-attachments/assets/7f0b6cd0-5484-4002-a6e4-bdbd1259cc6c" /><br>
